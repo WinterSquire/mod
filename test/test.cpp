@@ -3,6 +3,17 @@
 #include <cassert>
 #include <cstring>
 
+struct s_region {
+	void* base;
+	size_t size;
+	size_t page_size;
+	int number_of_code_page;
+	int number_of_data_page;
+	size_t page_used[16]; // page = code_page + data_page
+};
+
+static s_region g_region;
+
 struct s_invoke_test_instance {
 	size_t LOB;
 	const char* AOB;
@@ -128,11 +139,26 @@ TEST(patch, test) {
 
 int (*get_value_original)();
 
-int get_value0() { return 0; }
-int get_value1() { return 1; }
+// make it static so the linker won't use ILT
+static int get_value0() {
+	_mm_setzero_si128();
+	_mm_setzero_si128();
+	_mm_setzero_si128();
+	_mm_setzero_si128();
+	_mm_setzero_si128();
+	return 0;
+}
+
+static int get_value1() {
+	_mm_setzero_si128();
+	_mm_setzero_si128();
+	_mm_setzero_si128();
+	_mm_setzero_si128();
+	_mm_setzero_si128();
+	return 1;
+}
 
 TEST(detour, test) {
-#if 0
 	void* dst[] = { get_value0 };
 	void* src[] = { get_value1 };
 	size_t lob[] = { 1 * sizeof(void*) };
@@ -140,6 +166,7 @@ TEST(detour, test) {
 	char ori_buffer[32];
 	s_patch patch[1];
 	void* original_function[1];
+	auto code_buffer = reinterpret_cast<char*>(g_region.base);
 
 	s_patch_detour_create_parameters parameters{
 		.size = 1,
@@ -147,7 +174,8 @@ TEST(detour, test) {
 		.src = src,
 		.src_buffer = src_buffer,
 		.ori_buffer = ori_buffer,
-		.code_buffer = nullptr,
+		.code_buffer = code_buffer,
+		.patch = patch,
 		.original_function = original_function
 	};
 
@@ -169,7 +197,6 @@ TEST(detour, test) {
 	ASSERT_EQ(0, get_value_original());
 	ASSERT_EQ(0, get_value0());
 	ASSERT_EQ(1, get_value1());
-#endif
 }
 
 class i_person { public: virtual int get() = 0; };
@@ -220,13 +247,61 @@ TEST(vftable, test) {
 #ifdef _WINDOWS
 #include <Windows.h>
 #include <crtdbg.h>
-#endif
+
+SYSTEM_INFO g_system_info;
+
+void initialize_region(s_region* region) {
+	region->size = g_system_info.dwAllocationGranularity;
+	region->page_size = g_system_info.dwPageSize;
+	region->base = VirtualAlloc(NULL, region->size, MEM_RESERVE, PAGE_NOACCESS);
+	region->number_of_code_page = 1;
+	region->number_of_data_page = 1;
+
+	assert(region->base != nullptr);
+
+	auto page_address = reinterpret_cast<char*>(region->base);
+	auto page_count = region->size / region->page_size;
+
+	for (int i = 0; i < page_count; ++i) {
+		auto page_type = PAGE_NOACCESS;
+
+		if (i < region->number_of_code_page) {
+			page_type = PAGE_EXECUTE_READWRITE;
+		} else if (i < region->number_of_code_page + region->number_of_data_page) {
+			page_type = PAGE_READWRITE;
+		} else {
+			break;
+		}
+
+		VirtualAlloc(page_address, region->page_size, MEM_COMMIT, page_type);
+		page_address += region->page_size;
+	}
+}
+
+void free_region(s_region* region) {
+	VirtualFree(region->base, NULL, MEM_FREE);
+}
 
 int main(int argc, char** argv) {
-#ifdef _WINDOWS
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
-#endif
+
+	GetSystemInfo(&g_system_info);
+
+	GTEST_LOG_(INFO) 
+		<< std::hex
+		<< "System Info\n" 
+		<< "Allocation Granularity: 0x" << g_system_info.dwAllocationGranularity << '\n'
+		<< "Page Size: 0x" << g_system_info.dwPageSize << '\n'
+		<< std::endl;
+
+	initialize_region(&g_region);
 
 	::testing::InitGoogleTest(&argc, argv);
-	return RUN_ALL_TESTS();
+
+	auto result = RUN_ALL_TESTS();
+
+	free_region(&g_region); // we could also don't free the region
+
+	return result;
 }
+#endif

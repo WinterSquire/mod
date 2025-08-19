@@ -46,6 +46,8 @@ void patch_vftable_create(const s_patch_vftable_create_parameters* parameters) {
 }
 
 void patch_detour_create(const s_patch_detour_create_parameters* parameters) {
+	char buffer[64];
+	char code_buffer[32];
 	auto src_ptr = parameters->src_buffer;
 	auto ori_ptr = parameters->ori_buffer;
 	auto code_ptr = parameters->code_buffer;
@@ -55,12 +57,13 @@ void patch_detour_create(const s_patch_detour_create_parameters* parameters) {
 		auto dst = parameters->dst[i];
 
 		// generate an absolute indirect jmp
-		auto lob = jmp(src_ptr, src, dst);
+		auto lob = jmp(src_ptr, dst, src);
 
 		auto code_lob = lob;
 
 		// backup original code
-		memcpy(ori_ptr, dst, lob);
+		memcpy(code_buffer, dst, sizeof(code_buffer));
+		memcpy(ori_ptr, code_buffer, lob);
 
 		parameters->patch[i] = s_patch{
 			.dst = dst,
@@ -69,8 +72,8 @@ void patch_detour_create(const s_patch_detour_create_parameters* parameters) {
 			.size = lob,
 		};
 
-		// todo: analysis code
-		//memcpy(code_ptr, dst, code_lob);
+		code_lob = unassemble(buffer, code_buffer, dst, lob);
+		memcpy(code_ptr, buffer, code_lob);
 
 		parameters->original_function[i] = code_ptr;
 
