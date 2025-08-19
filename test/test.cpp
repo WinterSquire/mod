@@ -145,9 +145,10 @@ TEST(detour, test) {
 #endif
 }
 
-class c_person {public: virtual int get() { return 0; }};
-class c_student : c_person {public: virtual int get() { return 1; }};
-class c_dummy : c_person {public: virtual int get() { return 2; }};
+class i_person { public: virtual int get() = 0; };
+class c_person : public i_person {public: virtual int get() { return 0; }};
+class c_student : public i_person {public: virtual int get() { return 1; }};
+class c_dummy : public i_person {public: virtual int get() { return 2; }};
 
 TEST(vftable, test) {
 	c_person person;
@@ -169,20 +170,24 @@ TEST(vftable, test) {
 		.patch = patch
 	};
 
+	i_person* _person = &person;
+	i_person* _student = &student;
+	i_person* _dummy = &dummy;
+
 	patch_vftable_create(&parameters);
-	ASSERT_EQ(0, person.get());
-	ASSERT_EQ(1, student.get());
-	ASSERT_EQ(0, dummy.get());
+	ASSERT_EQ(0, _person->get());
+	ASSERT_EQ(1, _student->get());
+	ASSERT_EQ(0, _dummy->get());
 
 	patch_enable(patch, 1);
-	ASSERT_EQ(1, person.get());
-	ASSERT_EQ(1, student.get());
-	ASSERT_EQ(0, dummy.get());
+	ASSERT_EQ(1, _person->get());
+	ASSERT_EQ(1, _student->get());
+	ASSERT_EQ(0, _dummy->get());
 
 	patch_disable(patch, 1);
-	ASSERT_EQ(0, person.get());
-	ASSERT_EQ(1, student.get());
-	ASSERT_EQ(0, dummy.get());
+	ASSERT_EQ(0, _person->get());
+	ASSERT_EQ(1, _student->get());
+	ASSERT_EQ(0, _dummy->get());
 }
 
 #ifdef _WINDOWS
