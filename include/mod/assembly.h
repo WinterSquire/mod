@@ -11,6 +11,8 @@ constexpr int k_maximum_instruction_size = 15;
 #pragma pack(push, 1)
 
 enum e_opcode : unsigned char {
+	_opcode_ret = 0xC3,
+	_opcode_int3 = 0xCC,
 	_opcode_call_rel32 = 0xE8,
 	_opcode_jmp_rel32 = 0xE9,
 	_opcode_jmp_rel8 = 0xEB,
@@ -45,11 +47,13 @@ static_assert(sizeof(s_invoke_absolute_indirect) == 6);
 
 #pragma pack(pop)
 
-size_t call(char* buffer, void* RIP, int32_t rel32);
-size_t call(char* buffer, void* RIP, int64_t m64);
+size_t call(char* buffer, int32_t rel32);
+size_t call(char* buffer, int64_t m64);
 size_t call(char* buffer, void* RIP, void* DST);
 
-size_t jmp(char* buffer, void* RIP, int8_t rel8);
-size_t jmp(char* buffer, void* RIP, int32_t rel32);
-size_t jmp(char* buffer, void* RIP, int64_t m64);
+size_t jmp(char* buffer, int8_t rel8);
+size_t jmp(char* buffer, int32_t rel32);
+size_t jmp(char* buffer, int64_t m64);
 size_t jmp(char* buffer, void* RIP, void* DST);
+
+size_t unassemble(char* buffer, const char* instruction, void* RIP, size_t size);

@@ -1,6 +1,8 @@
 #include <mod/assembly.h>
+#include <hde64.h>
+#include <cstring>
 
-size_t call(char* buffer, void* RIP, int32_t rel32) {
+size_t call(char* buffer, int32_t rel32) {
 	auto instruction = reinterpret_cast<s_invoke_rel32*>(buffer);
 
 	instruction->opcode = _opcode_call_rel32;
@@ -9,7 +11,7 @@ size_t call(char* buffer, void* RIP, int32_t rel32) {
 	return sizeof(*instruction);
 }
 
-size_t call(char* buffer, void* RIP, int64_t m64) {
+size_t call(char* buffer, int64_t m64) {
 	auto ins_call = reinterpret_cast<s_invoke_absolute_indirect*>(buffer);
 
 	ins_call->opcode = _opcode_group_FF;
@@ -33,26 +35,26 @@ size_t call(char* buffer, void* RIP, void* DST) {
 	auto abs_offset = static_cast<uint64_t>(offset < 0 ? -offset : offset);
 
 	if (abs_offset < 0x80000000)
-        return call(buffer, RIP, static_cast<int32_t>(offset));
+        return call(buffer, static_cast<int32_t>(offset));
 	else
-		return call(buffer, RIP, reinterpret_cast<int64_t>(DST));
+		return call(buffer, reinterpret_cast<int64_t>(DST));
 }
 
-size_t jmp(char* buffer, void* RIP, int8_t rel8) {
+size_t jmp(char* buffer, int8_t rel8) {
 	auto insturction = reinterpret_cast<s_jmp_rel8*>(buffer);
 	insturction->opcode = _opcode_jmp_rel8;
 	insturction->offset = rel8 - sizeof(*insturction);
 	return sizeof(*insturction);
 }
 
-size_t jmp(char* buffer, void* RIP, int32_t rel32) {
+size_t jmp(char* buffer, int32_t rel32) {
 	auto instruction = reinterpret_cast<s_invoke_rel32*>(buffer);
 	instruction->opcode = _opcode_jmp_rel32;
 	instruction->offset = rel32 - sizeof(*instruction);
 	return sizeof(*instruction);
 }
 
-size_t jmp(char* buffer, void* RIP, int64_t m64) {
+size_t jmp(char* buffer, int64_t m64) {
 	auto instruction = reinterpret_cast<s_invoke_absolute_indirect*>(buffer);
 
 	instruction->opcode = _opcode_group_FF;
@@ -72,9 +74,51 @@ size_t jmp(char* buffer, void* RIP, void* DST) {
 	auto abs_offset = static_cast<uint64_t>(offset < 0 ? -offset : offset);
 
 	if (abs_offset < 0x80)
-		return jmp(buffer, RIP, static_cast<int8_t>(offset));
+		return jmp(buffer, static_cast<int8_t>(offset));
 	else if (abs_offset < 0x80000000) 
-		return jmp(buffer, RIP, static_cast<int32_t>(offset));
+		return jmp(buffer, static_cast<int32_t>(offset));
 	else
-		return jmp(buffer, RIP, reinterpret_cast<int64_t>(DST));
+		return jmp(buffer, reinterpret_cast<int64_t>(DST));
+}
+
+size_t unassemble(char* buffer, const char* instruction, void* RIP, size_t size) {
+	hde64s hs;
+	auto base = buffer;
+	auto begin = instruction;
+	auto end = instruction + size;
+
+	do {
+		if (*begin == _opcode_ret && begin + 1 < end) {
+			return 0;
+		}
+
+		hde64_disasm(begin, &hs);
+
+		if (hs.flags & F_ERROR) {
+			return 0;
+		}
+
+		switch (hs.opcode) {
+		default:
+			memcpy(buffer, begin, hs.len);
+			buffer += hs.len;
+			begin += hs.len;
+		}
+
+	} while (begin < end);
+
+	size_t ins_size = begin - instruction;
+	int64_t jmp_addr = reinterpret_cast<int64_t>(RIP) + ins_size;
+	buffer += jmp(buffer, jmp_addr);
+	size_t total_size = buffer - base;
+
+	constexpr int k_code_alignment = 4;
+	constexpr int k_code_alignment_mask = ~(k_code_alignment - 1);
+
+	size_t padding = ((total_size - 1) & k_code_alignment_mask) + k_code_alignment - total_size;
+
+	if (padding)
+		memset(buffer, _opcode_int3, padding);
+
+	return total_size + padding;
 }

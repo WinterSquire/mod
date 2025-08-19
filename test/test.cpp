@@ -4,8 +4,8 @@
 #include <cstring>
 
 struct s_invoke_test_instance {
-	char LOB;
-	char AOB[31];
+	size_t LOB;
+	const char* AOB;
 	void* RIP;
 	void* DST;
 };
@@ -32,31 +32,58 @@ s_invoke_test_instance g_call_test_instances[]{ {
 TEST(assembly, call_test) {
 	char buffer[k_maximum_instruction_size + sizeof(void*)];
 
-	// call create
 	for (int i = 0; i < _countof(g_call_test_instances); ++i) {
 		auto instance = g_call_test_instances + i;
 		ASSERT_EQ(call(buffer, instance->RIP, instance->DST), instance->LOB);
 		ASSERT_EQ(0, memcmp(buffer, instance->AOB, instance->LOB));
 	}
-
-	// todo: call convert(rel32 -> m64)
 }
 
 TEST(assembly, jmp_test) {
 	char buffer[k_maximum_instruction_size + sizeof(void*)];
 
-	// jmp create
 	for (int i = 0; i < _countof(g_jmp_test_instances); ++i) {
 		auto instance = g_jmp_test_instances + i;
 		ASSERT_EQ(jmp(buffer, instance->RIP, instance->DST), instance->LOB);
 		ASSERT_EQ(0, memcmp(buffer, instance->AOB, instance->LOB));
 	}
-
-	// todo: jmp convert(rel8 -> m64 | rel32 -> m64)
 }
 
-TEST(assembly, m64_test) {
-	// todo: m64 copy
+struct s_unassemble_test_instance {
+	void* RIP;
+	size_t LIN;
+	const char* IN;
+	size_t LOUT;
+	const char* OUT;
+};
+
+s_unassemble_test_instance g_unassemble_test_instances[] { 
+{ // simple parse copy test
+	.RIP = (void*)0x1800A78C0,
+	.LIN = 32,
+	.IN = "\x40\x55\x53\x56\x57\x41\x54\x41\x55\x41\x56\x41\x57\x48\x8D\xAC\x24\xC8\xFB\xFF\xFF\x48\x81\xEC\x38\x05\x00\x00\xFF\x15\xF6\x2B",
+	.LOUT = 36,
+	.OUT = "\x40\x55\x53\x56\x57\x41\x54\x41\x55\x41\x56\x41\x57\x48\x8D\xAC\x24\xC8\xFB\xFF\xFF\xFF\x25\x00\x00\x00\x00\xD5\x78\x0A\x80\x01\x00\x00\x00\xCC"
+},
+#if 0
+{ // todo: call jz test
+	.RIP = (void*)0x1800F01A0,
+	.LIN = 32,
+	.IN = "\x48\x83\xEC\x28\xE8\x3B\xFD\xFF\xFF\x32\xD2\x84\xC0\x74\x27\x8B\x0D\xE7\x9D\x94\x00\x65\x48\x8B\x04\x25\x58\x00\x00\x00\x41\xB8",
+	.LOUT = 0,
+	.OUT = ""
+},
+#endif
+};
+
+TEST(assembly, unassemble_test) {
+	char buffer[256];
+	
+	for (int i = 0; i < _countof(g_unassemble_test_instances); ++i) {
+		auto instance = g_unassemble_test_instances + i;
+		ASSERT_EQ(unassemble(buffer, instance->IN, instance->RIP, 14), instance->LOUT);
+		ASSERT_EQ(0, memcmp(buffer, instance->OUT, instance->LOUT));
+	}
 }
 
 TEST(patch, test) {
