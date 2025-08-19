@@ -22,8 +22,8 @@ s_invoke_test_instance g_jmp_test_instances[]{ {
 } };
 
 s_invoke_test_instance g_call_test_instances[]{ {
-	.LOB = 6, .AOB = "\xFF\x15\x85\x92\x6D\x00",
-	.RIP = (void*)0x18002144D, .DST = (void*)0x1806FA6D8
+	.LOB = 16, .AOB = "\xFF\x15\x02\x00\x00\x00\xEB\x08\x59\x56\x14\x2D\xFE\x7F\x00\x00",
+	.RIP = (void*)0x18002144D, .DST = (void*)0x7FFE2D145659
 }, {
 	.LOB = 5, .AOB = "\xE8\x93\x78\x03\x00",
 	.RIP = (void*)0x180021460, .DST = (void*)0x180058CF8
@@ -46,8 +46,8 @@ TEST(assembly, jmp_test) {
 	char buffer[k_maximum_instruction_size + sizeof(void*)];
 
 	// jmp create
-	for (int i = 0; i < _countof(g_call_test_instances); ++i) {
-		auto instance = g_call_test_instances + i;
+	for (int i = 0; i < _countof(g_jmp_test_instances); ++i) {
+		auto instance = g_jmp_test_instances + i;
 		ASSERT_EQ(jmp(buffer, instance->RIP, instance->DST), instance->LOB);
 		ASSERT_EQ(0, memcmp(buffer, instance->AOB, instance->LOB));
 	}

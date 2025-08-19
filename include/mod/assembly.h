@@ -10,29 +10,29 @@ constexpr int k_maximum_instruction_size = 15;
 
 #pragma pack(push, 1)
 
-struct s_call_rel32 {
-	uint8_t opcode = 0xE8;
-	int32_t offset;
+enum e_opcode : unsigned char {
+	_opcode_call_rel32 = 0xE8,
+	_opcode_jmp_rel32 = 0xE9,
+	_opcode_jmp_rel8 = 0xEB,
+	_opcode_group_FF = 0xFF
 };
 
-static_assert(sizeof(s_call_rel32) == 5);
-
 struct s_jmp_rel8 {
-	const uint8_t opcode = 0xEB;
+	e_opcode opcode;
 	int8_t offset;
 };
 
 static_assert(sizeof(s_jmp_rel8) == 2);
 
-struct s_jmp_rel32 {
-	const uint8_t opcode = 0xE9;
+struct s_invoke_rel32 {
+	e_opcode opcode;
 	int32_t offset;
 };
 
-static_assert(sizeof(s_jmp_rel32) == 5);
+static_assert(sizeof(s_invoke_rel32) == 5);
 
 struct s_invoke_absolute_indirect {
-	uint8_t Opcode = 0xFF;
+	e_opcode opcode;
 	struct {
 		char rm : 3;
 		char reg : 3;
